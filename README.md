@@ -65,7 +65,7 @@ Requires Node ≥ 22, git, and `tar` (built into Windows 10+, macOS and Linux). 
 ```bash
 git clone https://github.com/Yuttakarn2545/harness-autotune && cd harness-autotune
 npm ci
-npm run check   # build + typecheck + 40 offline tests, no API key needed
+npm run check   # build + typecheck + 41 offline tests, no API key needed
 npm run demo    # full loop on a generated repo with a scripted agent (synthetic numbers)
 ```
 
@@ -122,7 +122,31 @@ That repo has only 4 commits and none of them change tests, so the git miner fin
 ### Live bench
 
 <!-- bench:start -->
-_Not run yet. Numbers will appear here only from a real `bench --yes` run, labelled with model, seeds and date._
+**Measured 2026-11-20.** `claude-opus-5-5` via `claude -p` (Claude Code 2.1.325), 8 stub tasks from thai-receipt-ai × 2 seeds × 2 arms = 32 runs, 5 held-out / 3 train, `--max-budget-usd 1` per run. Total API-equivalent cost **$8.00**; 0 runs contaminated, 0 infrastructure errors.
+
+The candidate came from the **live proposer** (`propose --via claude-cli`, $0.07) reading the friction report above. It targets the "claimed done without running tests" category:
+
+```diff
++## Verification before saying done
++- After your LAST code edit, and before you say done, fixed, committed or ✅, run `npm run typecheck` and `npx vitest run` (or `npx vitest run <path>` for a targeted check). If you touched packages/mcp, also run `npm run smoke`.
++- Quote the pass/fail summary line from that run in your final message.
++- If you edit anything after the run, run it again.
++- If you could not run verification (usage limit, missing env, build error), the first line of your reply must say `NOT VERIFIED` and give the reason. Do not use ✅ or "done" in that case.
++- Do not commit until the verification run passes, unless the user says to.
+```
+
+| Split | Variant | Runs | Pass rate (95% CI) | Cost / solved | Mean tokens | Mean turns | Mean wall |
+|---|---|---:|---|---:|---:|---:|---:|
+| train | baseline | 6 | 100% [61%, 100%] | $0.24 | 268,820 | 6.8 | 45s |
+| train | verify-before-done | 6 | 100% [61%, 100%] | $0.26 | 310,842 | 8.0 | 66s |
+| heldout | baseline | 10 | 100% [72%, 100%] | $0.21 | 201,996 | 5.7 | 37s |
+| heldout | verify-before-done | 10 | 100% [72%, 100%] | $0.28 | 331,650 | 8.7 | 77s |
+
+| Candidate | Paired held-out tasks | Δ pass rate (95% CI) | Cost-per-solved ratio (95% CI) | Verdict |
+|---|---:|---|---|---|
+| verify-before-done | 5 | +0 pp [+0, +0] | 1.35× [1.24×, 1.45×] | **reject**: more expensive per solved task with no pass-rate gain |
+
+**Reading it:** the edit sounds obviously good, and it addresses real friction in the transcripts, but on these tasks it made Claude Code **35% more expensive per solved task and about 2× slower, for zero pass-rate gain**. The loop rejected it. This is the case the tool exists for. Caveats: the stub tasks are easy (both arms hit 100%, so a pass-rate gain could not show up here), and 5 held-out tasks is the minimum the rule allows. A harder task set, such as git tasks from a repo with real test-changing history, is the next measurement.
 <!-- bench:end -->
 
 ### Offline demo (scripted agent, not a model)
