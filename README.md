@@ -91,7 +91,7 @@ node dist/cli.js report --results .autotune/results.jsonl --candidates .autotune
 node dist/cli.js apply --repo /path/to/your/repo --candidates .autotune/candidates.json --id <winner> --report .autotune/report/report.md --pr
 ```
 
-`--deps copy` (the default) copies `node_modules` into each workspace and re-points workspace links into the sealed copy, so tests run against the agent's code, and writes never reach your original repo. Use `--deps "setup:npm ci"` to install fresh instead.
+`--deps copy` (the default) copies `node_modules` into each workspace and re-points workspace links into the sealed copy, so tests run against the agent's code, and writes never reach your original repo. Use `--deps link` for large trees: one cached copy, junctioned into each workspace (katun’s 891 MB tree: ~25 s once, then instant). Use `--deps "setup:npm ci"` to install fresh instead. Test runners that take one file (`tsx script.ts`) use `--test-command "npx tsx {file}"`; `--tests <regex>` picks which test files count as hidden tests.
 
 ---
 

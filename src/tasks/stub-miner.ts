@@ -144,7 +144,8 @@ export async function mineStubTasks(repo: string, opts: StubMineOptions = {}): P
   const template = opts.testCommand ?? (await detectTestCommand(repo, commit));
   if (!template) return [];
 
-  const testFiles = all.filter((f) => TEST_FILE_RE.test(f) && TS_EXT.test(f) && (!opts.scope || f.startsWith(opts.scope)));
+  const testRe = opts.tests ? new RegExp(opts.tests) : undefined;
+  const testFiles = all.filter((f) => TEST_FILE_RE.test(f) && TS_EXT.test(f) && (!opts.scope || f.startsWith(opts.scope)) && (!testRe || testRe.test(f)));
   // symbol key "file#name" → decl + tests that call it
   const found = new Map<string, { decl: Decl; tests: Set<string> }>();
   for (const tf of testFiles) {

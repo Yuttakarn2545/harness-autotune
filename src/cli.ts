@@ -37,7 +37,9 @@ Usage: harness-autotune <command> [options]
       --limit <n>            max tasks per kind (default 8)
       --scope <prefix>       only files under this path, e.g. packages/core
       --test-command <cmd>   template; {files} = hidden test paths (default: detected)
-      --deps copy|none|setup:<cmd>   how workspaces get dependencies (default copy)
+      --tests <regex>        only these test files count as hidden tests
+      --deps copy|link|none|setup:<cmd>   how workspaces get dependencies (default copy;
+                             link = one cached copy + junctions, for big node_modules)
       --no-verify            skip fail-on-base / pass-on-reference check
       --out <dir>            default .autotune/tasks
 
@@ -78,6 +80,8 @@ function parseDeps(v: string | undefined): DepsMode {
   if (!v || v === "copy") return "copy";
   if (v === "none") return "none";
   if (v.startsWith("setup:")) return { setup: v.slice(6) };
+  if (v === "link") return { link: resolve(".autotune", "cache") };
+  if (v.startsWith("link:")) return { link: resolve(v.slice(5)) };
   throw new Error(`bad --deps ${v}`);
 }
 
@@ -120,12 +124,12 @@ async function cmdMineSessions(args: string[]) {
 async function cmdMineTasks(args: string[]) {
   const { values } = parseArgs({
     args,
-    options: { repo: { type: "string" }, kind: { type: "string" }, limit: { type: "string" }, scope: { type: "string" }, "test-command": { type: "string" }, deps: { type: "string" }, "no-verify": { type: "boolean" }, out: { type: "string" } },
+    options: { repo: { type: "string" }, kind: { type: "string" }, limit: { type: "string" }, scope: { type: "string" }, "test-command": { type: "string" }, tests: { type: "string" }, deps: { type: "string" }, "no-verify": { type: "boolean" }, out: { type: "string" } },
   });
   const repo = resolve(req(values.repo, "repo"));
   const kind = values.kind ?? "both";
   const limit = Number(values.limit ?? 8);
-  const common = { limit, scope: values.scope, testCommand: values["test-command"] };
+  const common = { limit, scope: values.scope, testCommand: values["test-command"], tests: values.tests };
   let tasks: Task[] = [];
   if (kind === "git" || kind === "both") tasks.push(...(await mineGitTasks(repo, common)));
   if (kind === "stub" || kind === "both") tasks.push(...(await mineStubTasks(repo, common)));

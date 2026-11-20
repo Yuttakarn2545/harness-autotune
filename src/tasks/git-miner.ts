@@ -31,8 +31,14 @@ export async function detectTestCommand(repo: string, commit: string): Promise<s
   return undefined;
 }
 
+/**
+ * `{files}` → all hidden test paths in one invocation (vitest, jest, pytest…).
+ * `{file}`  → one invocation per path, chained with && (runners like `tsx script.ts` take a single file).
+ */
 export function renderTestCommand(template: string, files: string[]): string {
-  return template.replace("{files}", files.map((f) => (/\s/.test(f) ? `"${f}"` : f)).join(" "));
+  const q = (f: string) => (/\s/.test(f) ? `"${f}"` : f);
+  if (template.includes("{file}")) return files.map((f) => template.replace("{file}", q(f))).join(" && ");
+  return template.replace("{files}", files.map(q).join(" "));
 }
 
 const TRAILER_RE = /^(co-authored-by|signed-off-by|reviewed-by|change-id|🤖 generated with).*$/gim;
@@ -96,7 +102,8 @@ export async function mineGitTasks(repo: string, opts: MineOptions & { maxCommit
         return { st, path };
       })
       .filter((x) => !opts.scope || x.path.startsWith(opts.scope));
-    const tests = changes.filter((x) => TEST_FILE_RE.test(x.path) && CODE_FILE_RE.test(x.path) && x.st !== "D");
+    const testRe = opts.tests ? new RegExp(opts.tests) : undefined;
+    const tests = changes.filter((x) => TEST_FILE_RE.test(x.path) && CODE_FILE_RE.test(x.path) && x.st !== "D" && (!testRe || testRe.test(x.path)));
     const source = changes.filter((x) => !TEST_FILE_RE.test(x.path) && CODE_FILE_RE.test(x.path));
     if (!tests.length || !source.length) continue;
     const template = opts.testCommand ?? (await detectTestCommand(repo, c.sha));

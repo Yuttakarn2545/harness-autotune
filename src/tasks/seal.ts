@@ -1,11 +1,16 @@
 import { spawn } from "node:child_process";
 import { cp, lstat, mkdir, mkdtemp, readdir, readlink, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { git, sh } from "../exec.js";
 import type { FileContent, Task } from "./types.js";
 
-export type DepsMode = "none" | "copy" | { setup: string };
+/**
+ * none: no dependencies. copy: copy node_modules into every workspace (safest, slow for big trees).
+ * link: copy node_modules ONCE into a cache dir, then junction each workspace to it (fast; agent writes
+ * into node_modules would change the cache, never the source repo). setup: run a shell command.
+ */
+export type DepsMode = "none" | "copy" | { link: string } | { setup: string };
 
 export interface SealOptions {
   /** Absolute path of the source repo. Opened read-only: only `git archive` / `git show` touch it. */
@@ -85,12 +90,24 @@ export async function sealWorkspace(task: Task, opts: SealOptions): Promise<Seal
 
   const deps = opts.deps ?? "none";
   if (deps === "copy") await copyNodeModules(opts.sourceRepo, dir);
+  else if (typeof deps === "object" && "link" in deps) await linkNodeModules(opts.sourceRepo, dir, deps.link);
   else if (typeof deps === "object") {
     const r = await sh(deps.setup, { cwd: dir, timeoutMs: 15 * 60_000 });
     if (r.code !== 0) throw new Error(`setup command failed (${r.code}): ${(r.stderr || r.stdout).slice(-2000)}`);
   }
 
-  return { dir, dispose: () => rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }) };
+  return {
+    dir,
+    dispose: async () => {
+      // Remove a node_modules junction first so rm never recurses into the shared cache.
+      try {
+        if ((await lstat(join(dir, "node_modules"))).isSymbolicLink()) await unlink(join(dir, "node_modules"));
+      } catch {
+        /* none */
+      }
+      await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    },
+  };
 }
 
 /** Facts an auditor can check: the workspace leaks nothing from the source repo's history. */
@@ -133,6 +150,30 @@ export async function copyNodeModules(sourceRepo: string, dest: string): Promise
     await cp(from, to, { recursive: true, verbatimSymlinks: true, force: true });
     await relinkInto(to, src, resolve(dest));
   }
+}
+
+const cacheReady = new Map<string, Promise<string>>();
+
+/** Build (once per process and cache dir) a private copy of the source node_modules, then junction to it. */
+export async function linkNodeModules(sourceRepo: string, dest: string, cacheRoot: string): Promise<void> {
+  const src = resolve(sourceRepo);
+  // Must be a folder literally named node_modules: Node resolves deps from the junction target's real path.
+  const cacheDir = resolve(cacheRoot, basename(src), "node_modules");
+  let ready = cacheReady.get(cacheDir);
+  if (!ready) {
+    ready = (async () => {
+      try {
+        await lstat(join(cacheDir, ".autotune-complete"));
+      } catch {
+        await rm(cacheDir, { recursive: true, force: true });
+        await cp(join(src, "node_modules"), cacheDir, { recursive: true, verbatimSymlinks: true, force: true });
+        await writeFile(join(cacheDir, ".autotune-complete"), new Date().toISOString());
+      }
+      return cacheDir;
+    })();
+    cacheReady.set(cacheDir, ready);
+  }
+  await symlink(await ready, join(dest, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 }
 
 async function relinkInto(dir: string, src: string, dest: string, depth = 0): Promise<void> {

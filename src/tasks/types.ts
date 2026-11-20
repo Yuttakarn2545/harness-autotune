@@ -37,6 +37,8 @@ export interface MineOptions {
   limit?: number;
   /** Only consider files under this repo-relative prefix (e.g. "packages/core"). */
   scope?: string;
+  /** Only treat test files whose path matches this regex as hidden tests (e.g. skip slow e2e scripts). */
+  tests?: string;
 }
 
 export const TEST_FILE_RE = /(^|\/)(test|tests|__tests__|spec)\/|[._-](test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]+\.py$|_test\.py$/;

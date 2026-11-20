@@ -89,3 +89,38 @@ afterAll(() => {
   expect(gitIn(repo, "rev-parse", "HEAD").trim()).toBe(headBefore);
   expect(gitIn(repo, "status", "--porcelain").trim()).toBe("");
 });
+
+describe("test command templates", async () => {
+  const { renderTestCommand } = await import("../src/tasks/git-miner.js");
+  it("supports one-shot and per-file runners", () => {
+    expect(renderTestCommand("npx vitest run {files}", ["a.ts", "b c.ts"])).toBe('npx vitest run a.ts "b c.ts"');
+    expect(renderTestCommand("npx tsx {file}", ["a.ts", "b.ts"])).toBe("npx tsx a.ts && npx tsx b.ts");
+  });
+});
+
+describe("deps: link", () => {
+  it("junctions node_modules to a one-time cache copy, never to the source", async () => {
+    const { mkdirSync, writeFileSync, lstatSync, realpathSync, mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const r = makeFixtureRepo();
+    mkdirSync(join(r, "node_modules", "dep"), { recursive: true });
+    writeFileSync(join(r, "node_modules", "dep", "index.js"), "export default 1;\n");
+    const [t] = await mineGitTasks(r);
+    const cache = mkdtempSync(join(tmpdir(), "autotune-cache-"));
+    const ws = await sealWorkspace(t!, { sourceRepo: r, deps: { link: cache } });
+    try {
+      expect(lstatSync(join(ws.dir, "node_modules")).isSymbolicLink()).toBe(true);
+      const real = realpathSync(join(ws.dir, "node_modules"));
+      expect(real.startsWith(realpathSync(cache))).toBe(true);
+      expect(readFileSync(join(ws.dir, "node_modules", "dep", "index.js"), "utf8")).toContain("export default 1");
+    } finally {
+      await ws.dispose();
+    }
+    // Disposing the workspace must not delete the shared cache.
+    const { readdirSync } = await import("node:fs");
+    const entries = readdirSync(cache);
+    expect(entries).toHaveLength(1);
+    expect(existsSync(join(cache, entries[0]!, "node_modules", "dep", "index.js"))).toBe(true);
+    expect(existsSync(join(r, "node_modules", "dep", "index.js"))).toBe(true);
+  });
+});
