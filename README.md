@@ -102,7 +102,17 @@ node dist/cli.js apply --repo /path/to/your/repo --candidates .autotune/candidat
 `mine-sessions --all --since 60` over the author's real Claude Code history ran in seconds and found every category. The report itself stays private (it lives in git-ignored `.autotune/`). Only synthetic fixtures ship in this repo: [`examples/transcripts`](examples/transcripts).
 
 <!-- friction:start -->
-_Aggregate counts are pending the author's approval to publish._
+43 sessions · 541 human turns · 15,372 tool calls (last 60 days, all projects, measured 2026-11-20):
+
+| Friction category | Findings | Occurrences | Sessions affected |
+|---|---:|---:|---:|
+| Same command failed repeatedly | 54 | 202 | 15 |
+| Token-heavy turn (≥ 5× session median, ≥ $1) | 39 | 39 | 13 |
+| User had to correct the agent | 16 | 16 | 8 |
+| Claimed done without running tests | 11 | 11 | 6 |
+| Same file re-read without changes | 7 | 27 | 4 |
+
+Counts only; the per-finding evidence and costs stay local. The top failing command heads were shell mismatches on Windows (`cat`, `Get-Process`, `Set-Location`, `$var` in the wrong shell), which is exactly what a `CLAUDE.md` rule can target.
 <!-- friction:end -->
 
 ### Dogfood: tasks mined from [thai-receipt-ai](https://github.com/Yuttakarn2545/thai-receipt-ai)

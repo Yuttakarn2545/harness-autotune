@@ -115,7 +115,8 @@ export function parseCliProposal(stdout: string, max: number): ProposeResult & {
  */
 export async function proposeViaClaudeCli(input: ProposeInput, opts: { model?: string; bin?: string } = {}): Promise<ProposeResult & { costUsd?: number }> {
   const { run } = await import("../exec.js");
-  const schema = JSON.stringify(z.toJSONSchema(ProposalSetSchema));
+  const { $schema: _draft, ...jsonSchema } = z.toJSONSchema(ProposalSetSchema) as Record<string, unknown>;
+  const schema = JSON.stringify(jsonSchema);
   const args = ["-p", "--output-format", "json", "--json-schema", schema, "--tools", "", "--no-session-persistence", "--system-prompt", PROPOSER_SYSTEM, "--model", opts.model ?? DEFAULT_PROPOSER_MODEL];
   const r = await run(opts.bin ?? process.env["AUTOTUNE_CLAUDE_BIN"] ?? "claude", args, { input: buildProposerPrompt(input), timeoutMs: 15 * 60_000 });
   if (r.code !== 0 && !r.stdout.trim()) throw new Error(`claude -p exited ${r.code}: ${r.stderr.slice(-500)}`);
