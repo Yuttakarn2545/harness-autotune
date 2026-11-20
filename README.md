@@ -65,7 +65,7 @@ Requires Node ≥ 22, git, and `tar` (built into Windows 10+, macOS and Linux). 
 ```bash
 git clone https://github.com/Yuttakarn2545/harness-autotune && cd harness-autotune
 npm ci
-npm run check   # build + typecheck + 41 offline tests, no API key needed
+npm run check   # build + typecheck + 45 offline tests, no API key needed
 npm run demo    # full loop on a generated repo with a scripted agent (synthetic numbers)
 ```
 
@@ -146,7 +146,28 @@ The candidate came from the **live proposer** (`propose --via claude-cli`, $0.07
 |---|---:|---|---|---|
 | verify-before-done | 5 | +0 pp [+0, +0] | 1.35× [1.24×, 1.45×] | **reject**: more expensive per solved task with no pass-rate gain |
 
-**Reading it:** the edit sounds obviously good, and it addresses real friction in the transcripts, but on these tasks it made Claude Code **35% more expensive per solved task and about 2× slower, for zero pass-rate gain**. The loop rejected it. This is the case the tool exists for. Caveats: the stub tasks are easy (both arms hit 100%, so a pass-rate gain could not show up here), and 5 held-out tasks is the minimum the rule allows. A harder task set, such as git tasks from a repo with real test-changing history, is the next measurement.
+**Reading it:** the edit sounds obviously good, and it addresses real friction in the transcripts, but on these tasks it made Claude Code **35% more expensive per solved task and about 2× slower, for zero pass-rate gain**. The loop rejected it. This is the case the tool exists for. Caveats: the stub tasks are easy (both arms hit 100%, so a pass-rate gain could not show up here), and 5 held-out tasks is the minimum the rule allows. A harder task set is the next measurement, below.
+
+#### Second run: harder tasks from [katun](https://github.com/Yuttakarn2545/katun) (Remotion video editor + MCP server)
+
+**Measured 2026-11-20.** Same model and CLI. 12 stub tasks (DSP `biquad`, `readWav`, `layoutTimeline`, the app server's `startApp`, …), with hidden tests = the repo's own `tsx` test scripts (timeline, audio, components, live-bridge), all verified fail-on-base / pass-on-reference. Dependencies via `--deps link` (891 MB `node_modules`, cached once). 12 tasks × 2 seeds × 2 arms = 48 runs, 6 held-out. Total **$14.98** API-equivalent; 0 contaminated, 0 infrastructure errors.
+
+Candidate: `win-shell-retry-rule`, the live proposer's answer to the top friction category (shell mismatches on Windows; "stop after 2 identical failures").
+
+| Split | Variant | Runs | Pass rate (95% CI) | Cost / solved | Mean tokens | Mean turns | Mean wall |
+|---|---|---:|---|---:|---:|---:|---:|
+| train | baseline | 12 | 50% [25%, 75%] | $0.66 | 337,192 | 7.8 | 60s |
+| train | win-shell-retry-rule | 12 | 50% [25%, 75%] | $0.70 | 390,450 | 9.2 | 66s |
+| heldout | baseline | 12 | 83% [55%, 95%] | $0.35 | 300,540 | 6.8 | 62s |
+| heldout | win-shell-retry-rule | 12 | 83% [55%, 95%] | $0.34 | 285,619 | 6.6 | 54s |
+
+| Candidate | Paired held-out tasks | Δ pass rate (95% CI) | Cost-per-solved ratio (95% CI) | Verdict |
+|---|---:|---|---|---|
+| win-shell-retry-rule | 6 | +0 pp [+0, +0] | 0.97× [0.89×, 1.07×] | **inconclusive**: CIs too wide, add tasks or seeds |
+
+**Reading it:** this set is no longer saturated: 4 of 12 tasks (`computeLayout`, `layoutTimeline`, `moveLineTo`, `startApp`) were **never** solved, in any of the 16 runs across both arms. But outcomes are bimodal per task: 8 tasks went 4/4, 4 went 0/4. A shell-hygiene rule doesn't change whether the model gets layout math right, and the cost difference (−3%) sits inside the noise, so the loop declines to call it. The honest result is "no measurable effect"; the edit stays out.
+
+**What the two runs show together:** a plausible, transcript-grounded `CLAUDE.md` edit can be measurably harmful (run 1) or have no measurable effect (run 2). Without the A/B you would ship both.
 <!-- bench:end -->
 
 ### Offline demo (scripted agent, not a model)

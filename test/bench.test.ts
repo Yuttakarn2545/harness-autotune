@@ -161,3 +161,13 @@ describe("resume", () => {
     expect(loaded.find((r) => r.task === tasks[0]!.id)!.pass).toBe(true);
   });
 });
+
+describe("diagnostics", () => {
+  it("records the hidden-test tail for failed runs only", async () => {
+    const repo = makeFixtureRepo();
+    const tasks = await mineStubTasks(repo, { minBodyChars: 50 });
+    const out = join(mkdtempSync(join(tmpdir(), "autotune-tail-")), "r.jsonl");
+    const records = await runBench(planBench(tasks, [BASELINE], 1, 0.5), new ScriptedAgent(0), { sourceRepo: repo, seeds: 1, heldOutFraction: 0.5, deps: "none", resultsFile: out, maxTurns: 5, maxBudgetUsd: 1, timeoutMs: 60_000 });
+    expect(records.every((r) => !r.pass && (r.testTail ?? "").includes("not implemented"))).toBe(true);
+  });
+});

@@ -73,6 +73,8 @@ export interface RunRecord {
   wallMs: number;
   contaminated: boolean;
   error?: string;
+  /** Last lines of the hidden-test output (failures only), for diagnosing why a run failed. */
+  testTail?: string;
 }
 
 export interface ArmSummary {

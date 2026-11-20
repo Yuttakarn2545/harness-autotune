@@ -116,6 +116,7 @@ export async function runBench(plan: BenchPlan, agent: Agent, opts: BenchOptions
         wallMs: a.wallMs,
         contaminated: isContaminated(a.toolInputs, opts.sourceRepo),
         error: a.error,
+        testTail: score.pass ? undefined : score.tail.slice(-800),
       };
     } finally {
       await ws.dispose().catch(() => {});
