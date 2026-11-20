@@ -1,0 +1,48 @@
+{
+  "name": "harness-autotune",
+  "version": "0.1.0",
+  "description": "Closed-loop tuning for your Claude Code harness: mine friction from transcripts, propose CLAUDE.md/skill edits, prove them on sealed tasks mined from your own repo.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "check": "npm run build && npm run typecheck && npm run test && node dist/cli.js --help >/dev/null",
+    "cli": "node dist/cli.js",
+    "demo": "npm run build && node scripts/demo.mjs"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "agents",
+    "evals",
+    "benchmark",
+    "claude-md",
+    "skills",
+    "harness",
+    "llm"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "typescript": "~5.9.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "vitest": "^5.1.1"
+  },
+  "bin": {
+    "harness-autotune": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}
