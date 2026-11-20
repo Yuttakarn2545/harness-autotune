@@ -54,24 +54,31 @@ export function planBench(tasks: Task[], variants: Variant[], seeds: number, hel
   return { runs, train: train.map((t) => t.id), heldOut: heldOut.map((t) => t.id) };
 }
 
+const key = (v: string, t: string, s: number) => `${v}\u0000${t}\u0000${s}`;
+
+/** Read results; when a run was retried, the last record for (variant, task, seed) wins. */
 export async function loadRecords(file: string): Promise<RunRecord[]> {
+  let text: string;
   try {
-    return (await readFile(file, "utf8"))
-      .split("\n")
-      .filter((l) => l.trim())
-      .map((l) => JSON.parse(l) as RunRecord);
+    text = await readFile(file, "utf8");
   } catch {
     return [];
   }
+  const last = new Map<string, RunRecord>();
+  for (const l of text.split("\n")) {
+    if (!l.trim()) continue;
+    const r = JSON.parse(l) as RunRecord;
+    last.set(key(r.variant, r.task, r.seed), r);
+  }
+  return [...last.values()];
 }
-
-const key = (v: string, t: string, s: number) => `${v}\u0000${t}\u0000${s}`;
 
 /** Execute the plan, appending one JSON line per run. Re-running resumes where it left off. */
 export async function runBench(plan: BenchPlan, agent: Agent, opts: BenchOptions): Promise<RunRecord[]> {
   const log = opts.log ?? (() => {});
   await mkdir(dirname(opts.resultsFile), { recursive: true });
-  const existing = await loadRecords(opts.resultsFile);
+  // Infra failures (usage limit, API outage, setup error) are retried on resume; everything else is kept.
+  const existing = (await loadRecords(opts.resultsFile)).filter((r) => !r.error?.startsWith("infra"));
   const done = new Set(existing.map((r) => key(r.variant, r.task, r.seed)));
   const out = [...existing];
   let i = 0;

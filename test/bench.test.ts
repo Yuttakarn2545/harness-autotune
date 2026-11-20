@@ -143,3 +143,21 @@ describe("bench pipeline (offline, scripted agent)", () => {
     expect(existsSync(out)).toBe(true);
   });
 });
+
+describe("resume", () => {
+  it("retries infra failures and keeps the latest record per run", async () => {
+    const { writeFileSync } = await import("node:fs");
+    const repo = makeFixtureRepo();
+    const tasks = await mineStubTasks(repo, { minBodyChars: 50 });
+    const plan = planBench(tasks, [BASELINE], 1, 0.5);
+    const out = join(mkdtempSync(join(tmpdir(), "autotune-resume-")), "r.jsonl");
+    const infra = { variant: "baseline", task: tasks[0]!.id, seed: 0, split: "heldout", pass: false, costUsd: 0, tokens: 0, turns: 1, wallMs: 1, contaminated: false, error: "infra: API Error: 429 usage limit" };
+    writeFileSync(out, JSON.stringify(infra) + "\n");
+    const records = await runBench(plan, new ScriptedAgent(1), { sourceRepo: repo, seeds: 1, heldOutFraction: 0.5, deps: "none", resultsFile: out, maxTurns: 5, maxBudgetUsd: 1, timeoutMs: 60_000 });
+    expect(records).toHaveLength(tasks.length);
+    expect(records.every((r) => r.pass && !r.error)).toBe(true);
+    const loaded = await loadRecords(out);
+    expect(loaded).toHaveLength(tasks.length);
+    expect(loaded.find((r) => r.task === tasks[0]!.id)!.pass).toBe(true);
+  });
+});
