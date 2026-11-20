@@ -92,6 +92,12 @@ describe("claude stream-json", () => {
     expect(isContaminated(['Bash:{"command":"cat /c/dev/src-repo/x"}'], "C:\\Dev\\src-repo")).toBe(true);
     expect(isContaminated(r.toolInputs, "C:\\Dev\\other")).toBe(false);
   });
+  it("classifies API errors before any work as infra, not as a task failure", () => {
+    const ev = JSON.stringify({ type: "result", subtype: "success", is_error: true, api_error_status: 400, num_turns: 1, total_cost_usd: 0, result: "API Error: 400 unsupported model" });
+    expect(parseStreamJson(ev).error).toMatch(/^infra: API Error/);
+    const work = JSON.stringify({ type: "result", subtype: "error_max_turns", is_error: true, num_turns: 30, total_cost_usd: 0.9 });
+    expect(parseStreamJson(work).error).toBe("claude result: error_max_turns");
+  });
   it("reports a missing result event as an error", () => {
     expect(parseStreamJson("garbage").error).toMatch(/no result/);
   });

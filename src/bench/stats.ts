@@ -91,7 +91,7 @@ export interface ArmSummary {
 }
 
 export function usable(records: RunRecord[]): RunRecord[] {
-  return records.filter((r) => !r.contaminated && r.error !== "infra");
+  return records.filter((r) => !r.contaminated && !r.error?.startsWith("infra"));
 }
 
 export function summarizeArm(records: RunRecord[], variant: string, split: string): ArmSummary {

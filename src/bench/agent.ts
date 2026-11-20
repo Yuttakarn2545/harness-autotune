@@ -33,6 +33,7 @@ interface StreamEvent {
   type?: string;
   subtype?: string;
   is_error?: boolean;
+  api_error_status?: number;
   result?: string;
   total_cost_usd?: number;
   num_turns?: number;
@@ -92,7 +93,14 @@ export function parseStreamJson(stdout: string): Omit<AgentRun, "wallMs"> {
     turns: result?.num_turns ?? 0,
     resultText: result?.result ?? "",
     toolInputs,
-    error: result ? (result.is_error ? `claude result: ${result.subtype ?? "error"}` : undefined) : "no result event in stream",
+    error: !result
+      ? "infra: no result event in stream"
+      : result.is_error
+        ? // An API error before any work (bad model, auth, quota) says nothing about the task: exclude it.
+          result.api_error_status || (!(result.total_cost_usd ?? 0) && (result.num_turns ?? 0) <= 1)
+          ? `infra: ${(result.result ?? "api error").slice(0, 200)}`
+          : `claude result: ${result.subtype ?? "error"}`
+        : undefined,
   };
 }
 
@@ -103,7 +111,7 @@ export function parseStreamJson(stdout: string): Omit<AgentRun, "wallMs"> {
  */
 export class ClaudeCodeAgent implements Agent {
   name = "claude-code";
-  constructor(private bin = process.env["AUTOTUNE_CLAUDE_BIN"] ?? "claude") {}
+  constructor(private bin: string = process.env["AUTOTUNE_CLAUDE_BIN"] ?? "claude") {}
 
   async run(workspace: string, instruction: string, opts: AgentOptions): Promise<AgentRun> {
     const args = [

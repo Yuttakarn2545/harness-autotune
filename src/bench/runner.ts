@@ -88,7 +88,7 @@ export async function runBench(plan: BenchPlan, agent: Agent, opts: BenchOptions
         extraFiles: await variantFiles(variant, opts.sourceRepo, task),
       });
     } catch (e) {
-      record = { variant: variant.id, task: task.id, seed, split, pass: false, costUsd: 0, tokens: 0, turns: 0, wallMs: 0, contaminated: false, error: "infra" };
+      record = { variant: variant.id, task: task.id, seed, split, pass: false, costUsd: 0, tokens: 0, turns: 0, wallMs: 0, contaminated: false, error: `infra: ${(e as Error).message.slice(0, 200)}` };
       log(`[${i}/${plan.runs.length}] ${variant.id} × ${task.id} #${seed}: workspace setup failed: ${(e as Error).message}`);
       out.push(record);
       await appendFile(opts.resultsFile, JSON.stringify(record) + "\n");

@@ -17,7 +17,7 @@ export function buildBenchReport(records: RunRecord[], candidates: Candidate[], 
   for (const split of ["train", "heldout"]) for (const v of variants) arms.push(summarizeArm(records, v, split));
   const comparisons = variants.filter((v) => v !== "baseline").map((v) => compare(records, "baseline", v, "heldout"));
   const contaminated = records.filter((r) => r.contaminated).length;
-  const infra = records.filter((r) => r.error === "infra").length;
+  const infra = records.filter((r) => r.error?.startsWith("infra")).length;
   return {
     generatedAt: new Date().toISOString(),
     label,

@@ -63,6 +63,7 @@ Usage: harness-autotune <command> [options]
       --agent claude|scripted   scripted = offline pipeline check, synthetic numbers
       --deps …               as for mine-tasks
       --results <file>       default .autotune/results.jsonl (resumable)
+      --claude-bin <path>    Claude Code executable (default: claude on PATH, or $AUTOTUNE_CLAUDE_BIN)
       --yes                  actually run; without it only the cost estimate is printed
 
   report          Before/after table (markdown + HTML) from bench results
@@ -165,7 +166,7 @@ async function repoFacts(repo: string): Promise<string> {
 }
 
 async function cmdPropose(args: string[]) {
-  const { values } = parseArgs({ args, options: { friction: { type: "string" }, repo: { type: "string" }, offline: { type: "boolean" }, via: { type: "string" }, model: { type: "string" }, max: { type: "string" }, out: { type: "string" } } });
+  const { values } = parseArgs({ args, options: { friction: { type: "string" }, repo: { type: "string" }, offline: { type: "boolean" }, via: { type: "string" }, "claude-bin": { type: "string" }, model: { type: "string" }, max: { type: "string" }, out: { type: "string" } } });
   const report = await readJson<FrictionReport>(req(values.friction, "friction"));
   const repo = values.repo ? resolve(values.repo) : undefined;
   const max = Number(values.max ?? 3);
@@ -178,7 +179,7 @@ async function cmdPropose(args: string[]) {
     const input = { report, currentClaudeMd: claudeMd, repoFacts: repo ? await repoFacts(repo) : "", max };
     const via = values.via ?? "api";
     if (via !== "api" && via !== "claude-cli") throw new Error(`bad --via ${via}`);
-    const res = via === "api" ? await proposeWithClaude(input, { model: values.model }) : await proposeViaClaudeCli(input, { model: values.model });
+    const res = via === "api" ? await proposeWithClaude(input, { model: values.model }) : await proposeViaClaudeCli(input, { model: values.model, bin: values["claude-bin"] });
     if ("costUsd" in res && typeof res.costUsd === "number") console.error(`proposer cost: $${res.costUsd.toFixed(3)} (API-equivalent)`);
     for (const r of res.rejected) console.error(`rejected ${r.candidate.id}: ${r.problems.join("; ")}`);
     console.error(`proposer: ${res.model}, ${res.usage?.input_tokens} in / ${res.usage?.output_tokens} out tokens`);
@@ -207,7 +208,7 @@ async function cmdBench(args: string[]) {
       repo: { type: "string" }, tasks: { type: "string" }, candidates: { type: "string" }, only: { type: "string" }, seeds: { type: "string" },
       "held-out": { type: "string" }, model: { type: "string" }, "max-turns": { type: "string" }, "max-budget-usd": { type: "string" },
       "timeout-min": { type: "string" }, "assume-run-usd": { type: "string" }, agent: { type: "string" }, deps: { type: "string" },
-      results: { type: "string" }, yes: { type: "boolean" },
+      results: { type: "string" }, yes: { type: "boolean" }, "claude-bin": { type: "string" },
     },
   });
   const repo = resolve(req(values.repo, "repo"));
@@ -233,7 +234,7 @@ async function cmdBench(args: string[]) {
     process.exitCode = 3;
     return;
   }
-  const agent: Agent = agentKind === "scripted" ? new ScriptedAgent(0.6) : new ClaudeCodeAgent();
+  const agent: Agent = agentKind === "scripted" ? new ScriptedAgent(0.6) : new ClaudeCodeAgent(values["claude-bin"]);
   await runBench(plan, agent, {
     sourceRepo: repo,
     seeds,
